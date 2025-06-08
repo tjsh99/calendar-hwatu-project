@@ -88,7 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dateDisplay.textContent = formattedDate;
       }
       initCarousel();
-      initCircleBar(); // [수정] 서클 바 초기화 함수 호출 추가
+      initCircleBar();
       updateCalendarDays(currentYear, currentMonth, false);
       updateCircleActive(currentMonth);
     });
@@ -119,7 +119,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // --- 함수 정의 ---
     
-    // [수정] 실수로 누락되었던 서클 바 생성 함수를 다시 추가합니다.
     function initCircleBar() {
         if (!circleBar) return;
         for (let i = 1; i <= 12; i++) {
@@ -133,58 +132,67 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // [수정] 이 함수가 수정되었습니다.
     function initCarousel() {
-      if (!videoTrack) return;
-        for (let i = 1; i <= 12; i++) {
-            const card = document.createElement('div'); card.className = 'video-card'; card.dataset.month = i;
-            const video = document.createElement('video'); video.src = `assets/videos/${i}.webm`;
-            video.setAttribute('muted', ''); video.setAttribute('playsinline', ''); video.setAttribute('loop', ''); video.setAttribute('preload', 'metadata');
-            video.addEventListener('loadedmetadata', () => { video.currentTime = PAUSE_TIME; });
-            card.appendChild(video); 
-            videoTrack.appendChild(card); 
-            videoCards.push(card);
-            videoElements.push(video);
-        }
-        goToMonth(currentMonth, false);
-    }
+        if (!videoTrack) return;
+          for (let i = 1; i <= 12; i++) {
+              const card = document.createElement('div');
+              card.className = 'video-card';
+              card.dataset.month = i;
+
+              // <video> 태그 생성
+              const video = document.createElement('video');
+              video.setAttribute('muted', '');
+              video.setAttribute('playsinline', '');
+              video.setAttribute('loop', '');
+              video.setAttribute('preload', 'metadata');
+              video.addEventListener('loadedmetadata', () => {
+                  video.currentTime = PAUSE_TIME;
+              });
+
+              // 1. 아이폰용 소스 (<source>) 생성
+              const sourceMp4 = document.createElement('source');
+              sourceMp4.src = `assets/videos/iOS/${i}.mp4`;
+              sourceMp4.type = 'video/mp4; codecs="hvc1"';
+              
+              // 2. 안드로이드/기본 소스 (<source>) 생성
+              const sourceWebm = document.createElement('source');
+              sourceWebm.src = `assets/videos/${i}.webm`;
+              sourceWebm.type = 'video/webm';
+              
+              // 3. <video> 태그 안에 <source> 태그들 추가 (순서 중요!)
+              video.appendChild(sourceMp4);
+              video.appendChild(sourceWebm);
+
+              card.appendChild(video); 
+              videoTrack.appendChild(card); 
+              videoCards.push(card);
+              videoElements.push(video);
+          }
+          goToMonth(currentMonth, false);
+      }
 
 
     function playVideo(video) {
         if (!video) return;
-
-        // 1. 혹시 모를 상황에 대비해 JS에서도 명시적으로 음소거
         video.muted = true;
         video.currentTime = PAUSE_TIME;
-        
-        // 2. 비디오 재생 시도
         const playPromise = video.play();
-
-        // 3. playPromise가 존재하고, 에러가 발생했을 때를 대비한 처리
         if (playPromise !== undefined) {
             playPromise.catch(error => {
-                // 자동 재생이 막혔을 때의 처리
                 console.error("Video autoplay was prevented:", error);
-                
-                // 아직 자동재생 잠금이 풀리지 않았다면,
-                // 페이지 전체에 '첫 인터랙션'을 기다리는 리스너를 딱 한 번만 등록
                 if (!window.isAutoplayUnlocked) { 
                     const unlockAutoplay = () => {
                         console.log("Autoplay unlocked by user interaction.");
-                        window.isAutoplayUnlocked = true; // 잠금 해제 플래그 설정
-                        
-                        // 현재 보이는 비디오를 다시 재생 시도
+                        window.isAutoplayUnlocked = true;
                         const currentVideo = videoElements[currentMonth - 1];
                         if (currentVideo && currentVideo.paused) {
                             currentVideo.play();
                         }
-
-                        // 임무를 완수했으므로 리스너 제거
                         document.removeEventListener('click', unlockAutoplay);
                         document.removeEventListener('touchend', unlockAutoplay);
                         document.removeEventListener('keydown', unlockAutoplay);
                     };
-                    
-                    // 클릭, 터치, 키보드 입력 등 어떤 종류의 상호작용이든 감지
                     document.addEventListener('click', unlockAutoplay, { once: true });
                     document.addEventListener('touchend', unlockAutoplay, { once:true });
                     document.addEventListener('keydown', unlockAutoplay, { once: true });
@@ -534,7 +542,6 @@ document.addEventListener('DOMContentLoaded', () => {
         renderCards(computerResultHand, computerCards);
         computerResultJokbo.textContent = computerInfo.name;
 
-        // 보너스 버튼 표시 로직
         const hasBonus = playerData.bonusCards && playerData.bonusCards.length > 0;
         useBonusBtn.classList.toggle('hidden', !(result === 'lose' && hasBonus && !bonusUsed));
     }
@@ -542,18 +549,15 @@ document.addEventListener('DOMContentLoaded', () => {
     function useBonusCard() {
         if (!playerData.bonusCards || playerData.bonusCards.length === 0) return;
 
-        const usedBonusCard = playerData.bonusCards.pop(); // 맨 마지막 보너스 카드를 사용
+        const usedBonusCard = playerData.bonusCards.pop(); 
         saveGameData();
         updateBonusTooltip();
-
-        // 플레이어 패 중 하나를 보너스 패로 교체
+        
         const newPlayerCards = [...todaysPlayerCards];
-        newPlayerCards[0] = usedBonusCard; // 첫 번째 카드를 보너스 카드로 교체
+        newPlayerCards[0] = usedBonusCard; 
         
-        // 컴퓨터 패는 그대로 유지 (연출을 위해 한 번 더 뽑아도 무방)
-        const computerCards = dealComputerHand(newPlayerCards); // 교체된 패를 제외하고 다시 뽑음
+        const computerCards = dealComputerHand(newPlayerCards); 
         
-        // 교체된 패로 결과 다시 표시
         showResult(newPlayerCards, computerCards, true);
     }
 });
