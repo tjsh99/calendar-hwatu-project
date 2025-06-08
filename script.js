@@ -151,29 +151,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function playVideo(video) {
         if (!video) return;
+
+        // 1. 혹시 모를 상황에 대비해 JS에서도 명시적으로 음소거
+        video.muted = true;
         video.currentTime = PAUSE_TIME;
         
+        // 2. 비디오 재생 시도
         const playPromise = video.play();
 
+        // 3. playPromise가 존재하고, 에러가 발생했을 때를 대비한 처리
         if (playPromise !== undefined) {
             playPromise.catch(error => {
-                console.log("Autoplay was prevented. Waiting for user interaction to unlock.");
-                // 자동재생이 실패하면, 첫 인터랙션을 기다리는 리스너를 등록
-                if (!isAutoplayUnlocked) {
-                    const unlockAndPlay = () => {
-                        isAutoplayUnlocked = true;
+                // 자동 재생이 막혔을 때의 처리
+                console.error("Video autoplay was prevented:", error);
+                
+                // 아직 자동재생 잠금이 풀리지 않았다면,
+                // 페이지 전체에 '첫 인터랙션'을 기다리는 리스너를 딱 한 번만 등록
+                if (!window.isAutoplayUnlocked) { 
+                    const unlockAutoplay = () => {
+                        console.log("Autoplay unlocked by user interaction.");
+                        window.isAutoplayUnlocked = true; // 잠금 해제 플래그 설정
+                        
                         // 현재 보이는 비디오를 다시 재생 시도
                         const currentVideo = videoElements[currentMonth - 1];
                         if (currentVideo && currentVideo.paused) {
                             currentVideo.play();
                         }
-                        // 리스너는 한 번만 실행되면 되므로 제거
-                        document.removeEventListener('click', unlockAndPlay);
-                        document.removeEventListener('touchend', unlockAndPlay);
+
+                        // 임무를 완수했으므로 리스너 제거
+                        document.removeEventListener('click', unlockAutoplay);
+                        document.removeEventListener('touchend', unlockAutoplay);
+                        document.removeEventListener('keydown', unlockAutoplay);
                     };
                     
-                    document.addEventListener('click', unlockAndPlay, { once: true });
-                    document.addEventListener('touchend', unlockAndPlay, { once: true });
+                    // 클릭, 터치, 키보드 입력 등 어떤 종류의 상호작용이든 감지
+                    document.addEventListener('click', unlockAutoplay, { once: true });
+                    document.addEventListener('touchend', unlockAutoplay, { once:true });
+                    document.addEventListener('keydown', unlockAutoplay, { once: true });
                 }
             });
         }
