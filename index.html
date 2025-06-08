@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2025 화투 달력</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/png" href="assets/images/favicon.png" />
+</head>
+<body>
+  <div id="page-loader"></div>
+
+  <div class="main-wrap">
+    <!-- 헤더, 비디오 캐러셀 등 기존 메인 콘텐츠 -->
+    <div id="header">
+      <div class="title"><h1><span class="title-en">2025</span> <span class="title-kr">花鬪 月曆</span></h1></div>
+      <div id="date-display"></div>
+    </div>
+    <div class="header-underline"></div>
+    <div id="video-carousel"><div class="video-track"></div></div>
+    <div id="circle-bar"></div>
+    <div id="calendar-dates"></div>
+    <div class="bottom-spacer"></div>
+  </div>
+
+  <img class="background-mask" src="assets/images/background_mask.png" alt="mask" draggable="false" />
+
+  <div id="popup-overlay">
+    <div id="popup-window">
+      
+      <!-- [수정] 정보 아이콘과 보너스 아이콘을 묶는 컨테이너 추가 -->
+      <div class="popup-icons-container">
+        <!-- 정보 아이콘과 툴팁 -->
+        <div class="info-tooltip-container">
+          <div class="info-icon">i</div>
+          <div class="tooltip-content">
+            <h4>🎴 12장 섯다 룰</h4>
+            <p><strong>알리 > 독사 > 구삥 > 장삥 > 장사 > 세륙 > 9끗 ~ 1끗 > 망통(0끗)</strong> 순으로 높습니다.</p>
+            <p><strong>암행어사 (4월+7월):</strong> '알리,독사,구삥,장삥'을 잡는 특수패입니다.</p>
+          </div>
+        </div>
+        <!-- [추가] 보너스 아이콘과 툴팁 -->
+        <div id="bonus-tooltip-container" class="info-tooltip-container">
+          <div class="info-icon">B</div>
+          <div id="bonus-tooltip-content" class="tooltip-content">
+            <!-- 내용은 JS에서 동적으로 채워짐 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 게임 화면 (초기 상태) -->
+      <div id="game-initial-screen">
+        <h2>오늘의 패</h2>
+        <div id="player-hand-display" class="hand-container"></div>
+        <p id="player-jokbo-text"></p>
+        <button id="showdown-btn">컴퓨터와 승부</button>
+      </div>
+
+      <!-- 게임 결과 화면 (숨겨진 상태) -->
+      <div id="game-result-screen" class="hidden">
+        <h2 id="result-text">결과</h2>
+        <div class="result-hands-container">
+          <div class="hand-section">
+            <h3>나의 패</h3>
+            <div id="player-result-hand" class="hand-container"></div>
+            <p id="player-result-jokbo"></p>
+          </div>
+          <div class="hand-section">
+            <h3>컴퓨터의 패</h3>
+            <div id="computer-result-hand" class="hand-container"></div>
+            <p id="computer-result-jokbo"></p>
+          </div>
+        </div>
+        <!-- [수정] 버튼들을 담는 컨테이너 추가 -->
+        <div class="result-buttons">
+          <button id="play-again-btn">다시하기</button>
+          <!-- [추가] 보너스 사용 버튼 (초기엔 숨김) -->
+          <button id="use-bonus-btn" class="hidden">보너스 사용</button>
+        </div>
+      </div>
+
+      <!-- 하단 버튼 영역 -->
+      <div class="popup-footer">
+        <div class="dont-show-again">
+          <input type="checkbox" id="dont-show-checkbox" />
+          <label for="dont-show-checkbox">오늘 하루 다시 보지 않기</label>
+        </div>
+        <button id="close-popup-btn">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
