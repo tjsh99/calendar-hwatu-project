@@ -132,16 +132,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // [최종 수정] 이 함수만 수정되었습니다.
     function initCarousel() {
       if (!videoTrack) return;
         for (let i = 1; i <= 12; i++) {
             const card = document.createElement('div'); card.className = 'video-card'; card.dataset.month = i;
             const video = document.createElement('video');
-            
-            // [핵심] 이제 모든 브라우저가 예외 없이 .mp4 파일을 재생합니다.
-            video.src = `assets/videos/${i}.mp4`;
-            
+            video.src = `assets/videos/${i}.mp4`; // 이제 모든 사용자가 mp4만 봅니다.
             video.setAttribute('muted', ''); video.setAttribute('playsinline', ''); video.setAttribute('loop', ''); video.setAttribute('preload', 'metadata');
             video.addEventListener('loadedmetadata', () => { video.currentTime = PAUSE_TIME; });
             
@@ -372,23 +368,34 @@ document.addEventListener('DOMContentLoaded', () => {
         checkConsecutiveLogin();
     }
 
+    // [최종 수정] 이 함수만 수정되었습니다.
     function checkConsecutiveLogin() {
-        const todayStr = new Date().toISOString().split('T')[0];
-        if (playerData.lastVisitDate === todayStr) return;
+        // 한국 시간(KST)을 기준으로 YYYY-MM-DD 형식의 날짜 문자열 생성
+        // 'sv-SE' 로캘은 'YYYY-MM-DD' 형식을 안정적으로 반환합니다.
+        const todayKST = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }).split(' ')[0];
 
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
-        playerData.consecutiveDays = (playerData.lastVisitDate === yesterdayStr) ? (playerData.consecutiveDays || 0) + 1 : 1;
+        // 마지막 방문 날짜가 오늘과 같으면, 아무것도 하지 않고 함수 종료
+        if (playerData.lastVisitDate === todayKST) return;
+
+        // 어제 날짜도 한국 시간 기준으로 계산
+        const today = new Date();
+        const yesterday = new Date(today.getTime() - (24 * 60 * 60 * 1000)); // 24시간 전
+        const yesterdayKST = yesterday.toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }).split(' ')[0];
         
+        // 마지막 방문일이 어제와 같으면 연속일수 증가, 아니면 1로 초기화
+        playerData.consecutiveDays = (playerData.lastVisitDate === yesterdayKST) ? (playerData.consecutiveDays || 0) + 1 : 1;
+        
+        // 7일 연속 출석 시 보너스 카드 지급
         if (playerData.consecutiveDays >= 7) {
             const randomIndex = Math.floor(Math.random() * BONUS_CARDS_POOL.length);
             const awardedCard = BONUS_CARDS_POOL[randomIndex];
+            if (!playerData.bonusCards) playerData.bonusCards = []; // 혹시 bonusCards가 없을 경우 대비
             playerData.bonusCards.push(awardedCard);
-            playerData.consecutiveDays = 0;
+            playerData.consecutiveDays = 0; // 7일 채우면 초기화
         }
         
-        playerData.lastVisitDate = todayStr;
+        // 마지막 방문 날짜를 오늘(한국 기준)로 업데이트
+        playerData.lastVisitDate = todayKST;
         saveGameData();
     }
     
@@ -473,7 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
         gameInitialScreen.classList.remove('hidden');
         gameResultScreen.classList.add('hidden');
         
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = new Date().toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }).split(' ')[0];
         if (playerData.todaysHand && playerData.todaysHand.date === todayStr) {
             todaysPlayerCards = playerData.todaysHand.cards;
         } else {
