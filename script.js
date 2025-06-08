@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const videoCards = [];
     const videoElements = [];
     let isVideoTransitioning = false;
+    let isAutoplayUnlocked = false;
     const TOTAL_VIDEOS = 12;
     const FRAME_RATE = 30;
     const SAFE_ZONE_START_TIME = 31 / FRAME_RATE;
@@ -147,13 +148,33 @@ document.addEventListener('DOMContentLoaded', () => {
         goToMonth(currentMonth, false);
     }
 
+
     function playVideo(video) {
         if (!video) return;
         video.currentTime = PAUSE_TIME;
+        
         const playPromise = video.play();
+
         if (playPromise !== undefined) {
             playPromise.catch(error => {
-                console.log("Autoplay was prevented. Waiting for user interaction.");
+                console.log("Autoplay was prevented. Waiting for user interaction to unlock.");
+                // 자동재생이 실패하면, 첫 인터랙션을 기다리는 리스너를 등록
+                if (!isAutoplayUnlocked) {
+                    const unlockAndPlay = () => {
+                        isAutoplayUnlocked = true;
+                        // 현재 보이는 비디오를 다시 재생 시도
+                        const currentVideo = videoElements[currentMonth - 1];
+                        if (currentVideo && currentVideo.paused) {
+                            currentVideo.play();
+                        }
+                        // 리스너는 한 번만 실행되면 되므로 제거
+                        document.removeEventListener('click', unlockAndPlay);
+                        document.removeEventListener('touchend', unlockAndPlay);
+                    };
+                    
+                    document.addEventListener('click', unlockAndPlay, { once: true });
+                    document.addEventListener('touchend', unlockAndPlay, { once: true });
+                }
             });
         }
     }
