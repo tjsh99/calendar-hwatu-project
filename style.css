@@ -94,9 +94,9 @@ body {
   position: relative;
 }
 
-.video-card video {
+.video-card canvas {
   width: 100%; height: 100%;
-  object-fit: cover;
+  object-fit: contain; /* cover 대신 contain으로 해야 이미지가 잘리지 않습니다. */
   border-radius: 2vw;
   background-color: transparent;
 }

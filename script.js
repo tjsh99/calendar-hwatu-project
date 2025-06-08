@@ -1,8 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
 
     const publicHolidays2025 = [
-        "1-1", "1-27", "1-28", "1-29", "1-30", "3-1", "3-3", "5-5", 
-        "5-6", "6-3", "6-6", "8-15", "10-3", "10-5", "10-6", "10-7", 
+        "1-1", "1-27", "1-28", "1-29", "1-30", "3-1", "3-3", "5-5",
+        "5-6", "6-3", "6-6", "8-15", "10-3", "10-5", "10-6", "10-7",
         "10-8", "10-9", "12-25"
     ];
 
@@ -12,8 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const todayDate = today.getDate();
     let currentYear = todayYear;
     let currentMonth = todayMonth;
-    let previousDayCount = 0;
-
+    
     // --- DOM 요소 캐싱 ---
     const dateDisplay = document.getElementById("date-display");
     const circleBar = document.getElementById('circle-bar');
@@ -22,7 +21,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const videoCarousel = document.getElementById('video-carousel');
     const videoTrack = document.querySelector('.video-track');
     
-    // 팝업 & 게임 관련
     const popupOverlay = document.getElementById("popup-overlay");
     const closeBtn = document.getElementById("close-popup-btn");
     const gameInitialScreen = document.getElementById('game-initial-screen');
@@ -40,34 +38,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const dontShowCheckbox = document.getElementById('dont-show-checkbox');
     const bonusTooltipContent = document.getElementById('bonus-tooltip-content');
 
-
-    // --- 전역 변수 및 상수 ---
-    const videoCards = [];
-    const videoElements = [];
-    let isVideoTransitioning = false;
-    let isAutoplayUnlocked = false;
-    const TOTAL_VIDEOS = 12;
-    const FRAME_RATE = 30;
-    const SAFE_ZONE_START_TIME = 31 / FRAME_RATE;
-    const PAUSE_TIME = 75 / FRAME_RATE;
+    // --- PNG 시퀀스 관련 전역 변수 및 상수 ---
+    const cards = []; 
+    let isTransitioning = false;
     let currentTrackX = 0;
+    
+    const TOTAL_MONTHS = 12;
+    const FRAME_COUNT = 150;
+    const TARGET_FPS = 30;
+    const FRAME_INTERVAL = 1000 / TARGET_FPS;
+
+    const FOLDER_PATH = 'assets/videos/';
+    const PAUSE_FRAME = 75;
+
+    let animationController = {
+        isAnimating: false,
+        animationFrameId: null,
+        loopingFrame: PAUSE_FRAME,
+        lastFrameTime: 0,
+    };
+    
+    const imageCache = {};
+    let totalImagesToLoad = TOTAL_MONTHS * FRAME_COUNT;
+    let imagesLoaded = 0;
 
     const JOKBO_RANKS = {
-        "보너스": { rank: 0, name: "보너스 승리" },
-        "알리": { rank: 1, name: "알리" }, "독사": { rank: 2, name: "독사" },
-        "구삥": { rank: 3, name: "구삥" }, "장삥": { rank: 4, name: "장삥" },
-        "장사": { rank: 5, name: "장사" }, "세륙": { rank: 6, name: "세륙" },
+        "보너스": { rank: 0, name: "보너스 승리" }, "알리": { rank: 1, name: "알리" }, "독사": { rank: 2, name: "독사" },
+        "구삥": { rank: 3, name: "구삥" }, "장삥": { rank: 4, name: "장삥" }, "장사": { rank: 5, name: "장사" }, "세륙": { rank: 6, name: "세륙" },
         "암행어사": { rank: 100, name: "암행어사" },
     };
-
     const BONUS_CARDS_POOL = [
-        { id: 'bonus1', name: '오광' },
-        { id: 'bonus2', name: '비광' },
-        { id: 'bonus3', name: '홍단' },
-        { id: 'bonus4', name: '청단' },
-        { id: 'bonus5', name: '초단' }
+        { id: 'bonus1', name: '오광' }, { id: 'bonus2', name: '비광' }, { id: 'bonus3', name: '홍단' },
+        { id: 'bonus4', name: '청단' }, { id: 'bonus5', name: '초단' }
     ];
-
     let playerData = {};
     let todaysPlayerCards = [];
 
@@ -78,8 +81,6 @@ document.addEventListener('DOMContentLoaded', () => {
       document.body.style.backgroundPosition = 'center';
       document.body.style.backgroundRepeat = 'no-repeat';
       document.body.style.backgroundAttachment = 'fixed';
-      if(pageLoader) pageLoader.classList.add('hidden');
-      if(mainWrap) mainWrap.classList.add('loaded');
       
       initializePopupAndGame();
 
@@ -91,6 +92,8 @@ document.addEventListener('DOMContentLoaded', () => {
       initCircleBar();
       updateCalendarDays(currentYear, currentMonth, false);
       updateCircleActive(currentMonth);
+
+      preloadAllImages();
     });
     
     let resizeTimer;
@@ -105,13 +108,13 @@ document.addEventListener('DOMContentLoaded', () => {
         videoCarousel.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; }, { passive: true });
         videoCarousel.addEventListener('touchmove', (e) => { touchEndX = e.touches[0].clientX; }, { passive: true });
         videoCarousel.addEventListener('touchend', () => {
-            if (isVideoTransitioning || touchEndX === 0) return;
+            if (isTransitioning || touchEndX === 0) return;
             const swipeDistance = touchStartX - touchEndX;
             const swipeThreshold = 50;
             if (swipeDistance > swipeThreshold) {
-                goToMonth((currentMonth % TOTAL_VIDEOS) + 1);
+                goToMonth((currentMonth % TOTAL_MONTHS) + 1);
             } else if (swipeDistance < -swipeThreshold) {
-                goToMonth((currentMonth - 2 + TOTAL_VIDEOS) % TOTAL_VIDEOS + 1);
+                goToMonth((currentMonth - 2 + TOTAL_MONTHS) % TOTAL_MONTHS + 1);
             }
             touchStartX = 0; touchEndX = 0;
         });
@@ -126,90 +129,129 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.className = 'circle';
             btn.dataset.month = i;
             btn.onclick = () => {
-                if (i !== currentMonth && !isVideoTransitioning) goToMonth(i);
+                if (i !== currentMonth && !isTransitioning) goToMonth(i);
             };
             circleBar.appendChild(btn);
         }
     }
 
-    // [수정] 이 함수가 수정되었습니다.
-    function initCarousel() {
-        if (!videoTrack) return;
-          for (let i = 1; i <= 12; i++) {
-              const card = document.createElement('div');
-              card.className = 'video-card';
-              card.dataset.month = i;
-
-              // <video> 태그 생성
-              const video = document.createElement('video');
-              video.setAttribute('muted', '');
-              video.setAttribute('playsinline', '');
-              video.setAttribute('loop', '');
-              video.setAttribute('preload', 'metadata');
-              video.addEventListener('loadedmetadata', () => {
-                  video.currentTime = PAUSE_TIME;
-              });
-
-              // 1. 아이폰용 소스 (<source>) 생성
-              const sourceMp4 = document.createElement('source');
-              sourceMp4.src = `assets/videos/iOS/${i}.mp4`;
-              sourceMp4.type = 'video/mp4; codecs="hvc1"';
-              
-              // 2. 안드로이드/기본 소스 (<source>) 생성
-              const sourceWebm = document.createElement('source');
-              sourceWebm.src = `assets/videos/${i}.webm`;
-              sourceWebm.type = 'video/webm';
-              
-              // 3. <video> 태그 안에 <source> 태그들 추가 (순서 중요!)
-              video.appendChild(sourceMp4);
-              video.appendChild(sourceWebm);
-
-              card.appendChild(video); 
-              videoTrack.appendChild(card); 
-              videoCards.push(card);
-              videoElements.push(video);
-          }
-          goToMonth(currentMonth, false);
-      }
-
-
-    function playVideo(video) {
-        if (!video) return;
-        video.muted = true;
-        video.currentTime = PAUSE_TIME;
-        const playPromise = video.play();
-        if (playPromise !== undefined) {
-            playPromise.catch(error => {
-                console.error("Video autoplay was prevented:", error);
-                if (!window.isAutoplayUnlocked) { 
-                    const unlockAutoplay = () => {
-                        console.log("Autoplay unlocked by user interaction.");
-                        window.isAutoplayUnlocked = true;
-                        const currentVideo = videoElements[currentMonth - 1];
-                        if (currentVideo && currentVideo.paused) {
-                            currentVideo.play();
-                        }
-                        document.removeEventListener('click', unlockAutoplay);
-                        document.removeEventListener('touchend', unlockAutoplay);
-                        document.removeEventListener('keydown', unlockAutoplay);
-                    };
-                    document.addEventListener('click', unlockAutoplay, { once: true });
-                    document.addEventListener('touchend', unlockAutoplay, { once:true });
-                    document.addEventListener('keydown', unlockAutoplay, { once: true });
-                }
-            });
+    function formatFrame(frame) {
+        return String(frame).padStart(6, '0');
+    }
+    
+    function preloadAllImages() {
+        console.log("모든 이미지 미리 로딩을 시작합니다...");
+        for (let month = 1; month <= TOTAL_MONTHS; month++) {
+            imageCache[month] = [];
+            for (let i = 0; i < FRAME_COUNT; i++) {
+                const img = new Image();
+                img.src = `${FOLDER_PATH}${month}/${formatFrame(i)}.png`;
+                img.onload = () => {
+                    imagesLoaded++;
+                    if (imagesLoaded === totalImagesToLoad) {
+                        console.log("모든 이미지 로딩 완료!");
+                        if(pageLoader) pageLoader.classList.add('hidden');
+                        if(mainWrap) mainWrap.classList.add('loaded');
+                    }
+                };
+                imageCache[month].push(img);
+            }
         }
     }
 
-    const ease = (t) => 1 - Math.pow(1 - t, 4);
+    function initCarousel() {
+        if (!videoTrack) return;
 
+        for (let i = 1; i <= TOTAL_MONTHS; i++) {
+            const card = document.createElement('div');
+            card.className = 'video-card';
+            card.dataset.month = i;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = 500; 
+            canvas.height = 500;
+            
+            card.appendChild(canvas);
+            videoTrack.appendChild(card);
+            cards.push(card);
+        }
+
+        recenterCarousel(currentMonth); // 초기 위치 설정
+        startAnimationLoop();
+        updateCircleActive(currentMonth);
+        updateCalendarDays(currentYear, currentMonth, false);
+    }
+    
+    // [최종 수정] 애니메이션 루프 로직 단순화
+    function startAnimationLoop() {
+        if (animationController.isAnimating) return;
+        animationController.isAnimating = true;
+
+        const animate = (timestamp) => {
+            animationController.animationFrameId = requestAnimationFrame(animate);
+
+            // FPS 제어
+            const deltaTime = timestamp - animationController.lastFrameTime;
+            if (deltaTime < FRAME_INTERVAL) return;
+            animationController.lastFrameTime = timestamp - (deltaTime % FRAME_INTERVAL);
+
+            // 루프 프레임 업데이트
+            animationController.loopingFrame = (animationController.loopingFrame + 1) % FRAME_COUNT;
+            const loopFrameIndex = Math.floor(animationController.loopingFrame);
+
+            // 모든 카드를 순회하며 상태에 맞게 프레임 그리기
+            cards.forEach((card, index) => {
+                const month = index + 1;
+                const canvas = card.querySelector('canvas');
+                const ctx = canvas.getContext('2d');
+                const images = imageCache[month];
+
+                if (!images || images.length === 0) return;
+
+                let frameToDraw;
+                
+                // [수정된 핵심 로직]
+                // 현재 월과 일치하는 카드만 루프하고, 나머지는 무조건 PAUSE_FRAME
+                if (month === currentMonth) {
+                    frameToDraw = loopFrameIndex;
+                } else {
+                    frameToDraw = PAUSE_FRAME;
+                }
+
+                const safeFrameIndex = Math.max(0, Math.min(frameToDraw, FRAME_COUNT - 1));
+                const imageToDraw = images[safeFrameIndex];
+
+                if (imageToDraw && imageToDraw.complete) {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(imageToDraw, 0, 0, canvas.width, canvas.height);
+                }
+            });
+        };
+        animationController.animationFrameId = requestAnimationFrame(animate);
+    }
+
+    function goToMonth(targetMonth, withAnimation = true) {
+        currentMonth = targetMonth;
+
+        if (withAnimation) {
+            animateTo(targetMonth);
+        } else {
+            recenterCarousel(targetMonth);
+        }
+        updateCircleActive(targetMonth);
+        updateCalendarDays(currentYear, targetMonth, true);
+    }
+    
+    const ease = (t) => 1 - Math.pow(1 - t, 4);
     function animateTo(targetMonth) {
-        if (isVideoTransitioning) return;
-        isVideoTransitioning = true;
+        if (isTransitioning) return;
+        isTransitioning = true;
+        
         const startX = currentTrackX;
         const endX = calculateTargetX(targetMonth);
         const duration = 1000;
         let startTime = null;
+
         function animationLoop(currentTime) {
             if (!startTime) startTime = currentTime;
             const elapsedTime = currentTime - startTime;
@@ -217,50 +259,27 @@ document.addEventListener('DOMContentLoaded', () => {
             const easedProgress = ease(progress);
             currentTrackX = startX + (endX - startX) * easedProgress;
             videoTrack.style.transform = `translateX(${currentTrackX}px)`;
+
             if (window.innerWidth > 768) {
-                const viewportCenter = window.innerWidth / 2;
-                videoCards.forEach(card => {
+                cards.forEach(card => {
                     const rect = card.getBoundingClientRect();
-                    const cardCenter = rect.left + rect.width / 2;
-                    const proximity = Math.min(Math.abs(viewportCenter - cardCenter) / (rect.width * 1.2), 1);
+                    const proximity = Math.min(Math.abs((window.innerWidth / 2) - (rect.left + rect.width / 2)) / (rect.width * 1.2), 1);
                     const translateY = proximity * 15;
                     card.style.transform = `translateY(${translateY}%)`;
                 });
             }
+
             if (progress < 1) {
                 requestAnimationFrame(animationLoop);
             } else {
-                isVideoTransitioning = false;
+                isTransitioning = false;
             }
         }
         requestAnimationFrame(animationLoop);
     }
     
-    function goToMonth(targetMonth, withAnimation = true) {
-        const oldMonth = currentMonth;
-        currentMonth = targetMonth;
-        const oldVideo = videoElements[oldMonth - 1];
-        const newVideo = videoElements[targetMonth - 1];
-        if (oldVideo && newVideo && oldMonth !== targetMonth) {
-            handleOldVideoPausing(oldVideo);
-            playVideo(newVideo);
-        } else if (newVideo) {
-            playVideo(newVideo);
-        }
-        if (withAnimation) {
-            animateTo(targetMonth);
-        } else {
-            recenterCarousel(targetMonth);
-        }
-        updateCircleActive(targetMonth);
-        if (oldMonth !== targetMonth) {
-            previousDayCount = getDaysInMonth(currentYear, oldMonth);
-            updateCalendarDays(currentYear, targetMonth, true);
-        }
-    }
-
     function calculateTargetX(targetMonth) {
-        const targetCard = videoCards[targetMonth - 1];
+        const targetCard = cards[targetMonth - 1];
         if (!targetCard) return 0;
         const cardWidth = targetCard.offsetWidth;
         const cardMargin = parseFloat(getComputedStyle(targetCard).marginRight);
@@ -272,32 +291,15 @@ document.addEventListener('DOMContentLoaded', () => {
         currentTrackX = calculateTargetX(targetMonth);
         videoTrack.style.transform = `translateX(${currentTrackX}px)`;
         if (window.innerWidth > 768) {
-            videoCards.forEach((card, index) => {
+            cards.forEach((card, index) => {
                 card.style.transform = (index + 1) === targetMonth ? 'translateY(0%)' : 'translateY(15%)';
             });
         } else {
-            videoCards.forEach(card => card.style.transform = 'none');
-        }
-    }
-
-    function handleOldVideoPausing(video) {
-        if (!video || !video.duration) return;
-        const currentTime = video.currentTime; const duration = video.duration;
-        if (currentTime >= SAFE_ZONE_START_TIME && currentTime <= duration - SAFE_ZONE_START_TIME) {
-            video.pause();
-        } else {
-            let checkTimeInterval;
-            const check = () => {
-                if (video.currentTime >= SAFE_ZONE_START_TIME || video.paused) {
-                    video.pause(); cancelAnimationFrame(checkTimeInterval);
-                } else {
-                    checkTimeInterval = requestAnimationFrame(check);
-                }
-            };
-            checkTimeInterval = requestAnimationFrame(check);
+            cards.forEach(card => card.style.transform = 'none');
         }
     }
     
+    // --- 달력 및 게임 관련 함수들 (수정 없음) ---
     function updateCircleActive(month) {
         if (!circleBar) return;
         for (let i = 0; i < circleBar.children.length; i++) {
@@ -331,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const date = new Date(year, month - 1, dayNumber);
         const dateString = `${month}-${dayNumber}`;
         const isSunday = date.getDay() === 0;
-        const isHoliday = year === 2025 && publicHolidays2025.includes(dateString);
+        const isHoliday = publicHolidays2025.includes(dateString);
         if (isSunday || isHoliday) {
           dayElem.classList.add('sunday');
         } else if (date.getDay() === 6) {
@@ -349,7 +351,6 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
     
-    // --- 섯다 미니게임 로직 ---
     function initializePopupAndGame() {
         if (!popupOverlay) return;
         loadGameData();
@@ -400,7 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const randomIndex = Math.floor(Math.random() * BONUS_CARDS_POOL.length);
             const awardedCard = BONUS_CARDS_POOL[randomIndex];
             playerData.bonusCards.push(awardedCard);
-            playerData.consecutiveDays = 0; // 초기화
+            playerData.consecutiveDays = 0;
         }
         
         playerData.lastVisitDate = todayStr;
@@ -526,10 +527,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (bonusUsed) {
             resultText.textContent = "보너스 승리!";
             resultText.classList.add('bonus-win');
-        } else if (result === 'win') {
+        } else if (result === "win") {
             resultText.textContent = "승리";
             resultText.classList.add('win');
-        } else if (result === 'lose') {
+        } else if (result === "lose") {
             resultText.textContent = "패배";
             resultText.classList.add('lose');
         } else {
